@@ -1,71 +1,132 @@
-module Main exposing (main)
+port module Main exposing (main)
 
 import Browser
-import Native exposing (Native)
+import Http
+import Json.Decode as D
+import Json.Encode as E
+import Native exposing (Native, activityIndicator, button, image, label)
 import Native.Attributes as NA
-import Native.Frame as Frame
+import Native.Event as Ev
 import Native.Layout as Layout
-import Native.Page as Page
+import RemoteData
+import Weather
 
 
-type NavPage
-    = HomePage
+openWeatherAPIKEY : String
+openWeatherAPIKEY =
+    "YOUR_OPEN_WEATHER_API_KEY"
+
+
+{-| Uses @nativescript/geolocation to get device location
+-}
+port getCurrentLocation : () -> Cmd msg
+
+
+port gotCurrentLocation : (E.Value -> msg) -> Sub msg
 
 
 type alias Model =
-    { rootFrame : Frame.Model NavPage
+    { weatherData : RemoteData.WebData Weather.Weather
+    , location : Maybe Weather.Location
     }
 
 
 init : ( Model, Cmd Msg )
 init =
-    ( { rootFrame = Frame.init HomePage }
+    ( { weatherData = RemoteData.NotAsked
+      , location = Nothing
+      }
     , Cmd.none
     )
 
 
 type Msg
-    = SyncFrame Bool
+    = GetLocation
+    | GotLocation (Result D.Error Weather.Location)
+    | GotWeather (Result Http.Error Weather.Weather)
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
-        SyncFrame bool ->
-            ( { model | rootFrame = Frame.handleBack bool model.rootFrame }, Cmd.none )
+        GetLocation ->
+            ( model, getCurrentLocation () )
 
+        GotLocation location ->
+            let
+                maybeGetWeather =
+                    location
+                        |> Result.map (Weather.getWeatherFor openWeatherAPIKEY GotWeather)
+                        |> Result.toMaybe
+            in
+            ( { model
+                | weatherData =
+                    maybeGetWeather
+                        |> Maybe.map (always RemoteData.Loading)
+                        |> Maybe.withDefault RemoteData.NotAsked
+              }
+            , maybeGetWeather
+                |> Maybe.withDefault Cmd.none
+            )
 
-homePage : Model -> Native Msg
-homePage _ =
-    Page.pageWithActionBar SyncFrame
-        []
-        (Native.actionBar [ NA.title "Elm Native Blank" ] [])
-        (Layout.flexboxLayout
-            [ NA.alignItems "center"
-            , NA.justifyContent "center"
-            , NA.height "100%"
-            ]
-            [ Native.label [ NA.class "main", NA.text "Hello From Elm" ] []
-            ]
-        )
+        GotWeather result ->
+            ( { model
+                | weatherData =
+                    case result of
+                        Err err ->
+                            RemoteData.Failure err
 
-
-getPage : Model -> NavPage -> Native Msg
-getPage model page =
-    case page of
-        HomePage ->
-            homePage model
+                        Ok weather ->
+                            RemoteData.Success weather
+              }
+            , Cmd.none
+            )
 
 
 view : Model -> Native Msg
 view model =
-    model.rootFrame
-        |> Frame.view [] (getPage model)
+    Layout.flexboxLayout
+        [ NA.flexDirection "column"
+        , NA.justifyContent "center"
+        , NA.alignItems "center"
+        , NA.height "100%"
+        ]
+    <|
+        case model.weatherData of
+            RemoteData.NotAsked ->
+                [ button
+                    [ Ev.onTap GetLocation
+                    , NA.text "Fetch Weather"
+                    , NA.fontSize "24"
+                    , NA.backgroundColor "#d3d3d3"
+                    , NA.borderRadius "5"
+                    , NA.width "100%"
+                    ]
+                    []
+                ]
+
+            RemoteData.Loading ->
+                [ activityIndicator
+                    [ NA.busy "true"
+                    , NA.color "blue"
+                    ]
+                    []
+                ]
+
+            RemoteData.Failure _ ->
+                [ label [ NA.text "Something went wrong", NA.textAlignment "center", NA.color "red" ] []
+                ]
+
+            RemoteData.Success weather ->
+                [ image [ NA.height "100", NA.src ("https://openweathermap.org/img/w/" ++ weather.icon ++ ".png") ] []
+                , label [ NA.fontSize "30", NA.text weather.name ] []
+                , label [ NA.text (String.fromFloat weather.temperature ++ "℃") ] []
+                ]
 
 
 subscriptions : Model -> Sub Msg
 subscriptions _ =
-    Sub.none
+    gotCurrentLocation (D.decodeValue Weather.decoderLocation >> GotLocation)
 
 
 main : Program () Model Msg

@@ -12,13 +12,14 @@
   },
   "dependencies": {
     "@nativescript/core": "~8.4.0",
+    "@nativescript/geolocation": "^8.1.0",
     "@nativescript/theme": "~3.0.2",
     "elm": "^0.19.1-5",
-    "elm-native-js": "^1.0.2"
+    "elm-native-js": "^1.0.3"
   },
   "devDependencies": {
-    "@nativescript/ios": "8.4.1",
     "@nativescript/android": "8.4.0",
+    "@nativescript/ios": "8.4.1",
     "@nativescript/types": "~8.4.0",
     "@nativescript/webpack": "~5.0.12",
     "elm-webpack-loader": "^8.0.0",
