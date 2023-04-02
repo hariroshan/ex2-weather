@@ -15,7 +15,7 @@
     "@nativescript/geolocation": "^8.1.0",
     "@nativescript/theme": "~3.0.2",
     "elm": "^0.19.1-5",
-    "elm-native-js": "^1.0.4"
+    "elm-native-js": "^1.1.0"
   },
   "devDependencies": {
     "@nativescript/android": "8.4.0",
